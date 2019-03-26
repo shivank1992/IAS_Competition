@@ -1,5 +1,5 @@
 ##  Install packages
-list.of.packages <- c("shiny","dplyr","DT","readr","readxl","tidyr","xlsx","wordcloud","stringr","formattable")
+list.of.packages <- c("shiny","dplyr","DT","readr","readxl","tidyr","xlsx","wordcloud","stringr","formattable","caret")
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
 # 
@@ -15,6 +15,7 @@ library(ggplot2)
 library(wordcloud) #wordcloud
 library(stringr)
 library(formattable)
+library(caret)
 
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 mov_budget.df <- read_excel("./IAC_4.0/IAC_4.0/IAC4-dataDescription.xlsx", 
@@ -176,3 +177,53 @@ movie4 %>% na.omit() %>%
   geom_bar(color = "black", fill = "#00CCFF")+
   theme_minimal()+
   labs(title='Count Plot of Non-Sucessful / Successful')
+
+
+#HighBudget vs Successful Table
+table(movie4$highbudget,movie4$successful,
+      dnn = c("HighBudget", "Successful"))
+
+
+###############################################################################################
+#Start Data Modelling
+
+##Data Prep
+# Subset data based on Budget
+lowbudget <- movie4[which(movie4$highbudget==0),] %>% na.omit()
+highbudget <- movie4[which(movie4$highbudget==1),] %>% na.omit()
+
+
+##Model for small budget
+#split Data
+set.seed(13)
+lbtrainindex <- createDataPartition(lowbudget$successful, p=0.80, list= FALSE)
+lb.tr <- lowbudget[lbtrainindex, ]
+lb.te <- lowbudget[-lbtrainindex, ]
+
+##Decision Tree
+library(doParallel)
+glimpse(train)
+
+cl <- parallel::makeCluster(detectCores(logical=TRUE)-1, type='PSOCK')
+doParallel::registerDoParallel(cl)
+start.time <- Sys.time()
+tune.gridcart <- expand.grid(maxdepth = seq(1,30,1))
+trnControl <- trainControl(method='cv',number=5, allowParallel = TRUE)
+set.seed(13)
+lb_dtree_fit_gini <- train(successful ~., data = lb.tr, method = "rpart2",
+                           parms = list(split = "information"),
+                           trControl=trnControl,
+                           tuneLength = 3,
+                           tuneGrid =tune.gridcart)
+fb_dtree_fit_gini_t<- Sys.time() - start.time
+parallel::stopCluster(cl)
+registerDoSEQ()
+
+
+lb_dtree_fit_gini
+plot(lb_dtree_fit_gini)
+plot(lb_dtree_fit_gini$finalModel)
+text(lb_dtree_fit_gini$finalModel)
+library(rattle)
+fancyRpartPlot(lb_dtree_fit_gini$finalModel, uniform=TRUE,
+               main="Pruned Classification Tree")
