@@ -62,20 +62,9 @@ mov_budget.df$golden_globe <- str_extract(string = mov_budget.df$awards, "\\d+\\
 #Create dummy variable for sequel
 mov_budget.df$sequel <- ifelse(grepl("sequel",mov_budget.df$keywords),yes=1,no=0)
 
-credit %>% 
-  group_by(name) %>% 
-    tally() %>% 
-      arrange(desc(n)) %>% 
-        head(10) %>% 
-          ggplot(aes(factor(name,levels=name),n,fill=name))+
-          geom_bar(stat="identity")+labs(x="Artist",y="Count",title="Top 10 artist with most movies")+
-            theme_few()+
-              theme(axis.text.x=element_text(angle=90),
-                    plot.title=element_text(hjust=0.5,color="red"),
-                    legend.position="none")
 
-mov_budget <- mov_budget.df[complete.cases(mov_budget.df), ]
-dim(mov_budget)
+#mov_budget <- mov_budget.df[complete.cases(mov_budget.df), ]
+#dim(mov_budget)
 
 
 a<- as.data.frame(str_split_fixed(mov_budget.df$actors, ", ", Inf))
@@ -149,3 +138,41 @@ a %>%
   arrange(desc(avg_rating)) %>%
   top_n(10, avg_rating) %>%
   formattable(list(avg_rating = color_bar("orange")), align = 'l')
+
+#Remove zero values
+glimpse(mov_budget.df)
+movie <- mov_budget.df[mov_budget.df$`Box Office Gross`!= 0, ]
+
+movie2 <- movie[movie$Budget!= 0, ]
+
+hist(log10(movie2$Budget))
+
+movie2$performance <- as.numeric(movie2$`Box Office Gross`)/movie2$Budget
+
+movie3<- movie2 %>% filter(!Budget == 44)
+movie4<- movie3 %>% filter(!Budget == 300)
+
+#Split into High Budget and Low Budget
+movie4$highbudget <- cut(as.numeric(movie4$Budget), 
+                         breaks = c(0, 5000000, Inf), 
+                         labels = c(0,1))
+
+##Count Plot
+movie4 %>%
+  ggplot(aes(highbudget))+
+    geom_bar(color = "black", fill = "#00CCFF")+
+      theme_minimal()+
+        labs(title='Count Plot of Low Budget / High Budget')
+
+
+#Split into Successful and Non-Successful
+movie4$successful <- cut(as.numeric(movie4$performance), 
+                         breaks = c(0, 1, Inf), 
+                         labels = c(0,1))
+
+##Count Plot
+movie4 %>% na.omit() %>%
+  ggplot(aes(successful))+
+  geom_bar(color = "black", fill = "#00CCFF")+
+  theme_minimal()+
+  labs(title='Count Plot of Non-Sucessful / Successful')
